@@ -1,0 +1,30 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+  }
+  
+  #auth, #lobby, #game {
+    padding: 20px;
+  }
+  
+  input {
+    display: block;
+    margin: 10px auto;
+    padding: 10px;
+    font-size: 16px;
+  }
+  
+  button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  
+  canvas {
+    border: 1px solid black;
+    margin: 20px auto;
+    display: block;
+  }
+  

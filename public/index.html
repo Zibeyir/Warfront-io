@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategy Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="auth">
+    <h1>Strategy Game</h1>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button id="signup">Sign Up</button>
+    <button id="login">Log In</button>
+    <div id="auth-error"></div>
+  </div>
+
+  <div id="lobby" style="display: none;">
+    <h2>Lobby</h2>
+    <input type="text" id="roomName" placeholder="Enter Room Name">
+    <button id="joinRoom">Join Room</button>
+    <div id="lobby-error"></div>
+    <div id="players"></div>
+  </div>
+
+  <div id="game" style="display: none;">
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-status"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
