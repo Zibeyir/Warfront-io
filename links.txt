@@ -1,0 +1,5 @@
+Mongo
+https://cloud.mongodb.com/v2/6762a0d0e4a6634da0e71670#/metrics/replicaSet/6762a18534e78c3b133f7d09/explorer/test/rooms/find
+Maps
+https://www.mapchart.net/world.html
+https://www.mapchart.net/europe.html

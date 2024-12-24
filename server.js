@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -17,8 +18,6 @@ app.use(express.static('public'));
 // Connect to MongoDB
 mongoose.connect('mongodb+srv://zibeyira:jXC6ridjtyB8nmZA@cluster0.rqp6v.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0');
 
-
-  
 // MongoDB Schemas
 const UserSchema = new mongoose.Schema({
   username: { type: String, unique: true },
@@ -71,7 +70,7 @@ io.on('connection', (socket) => {
       await room.save();
     }
 
-    if (room.players.length >= 4) {
+    if (room.players.length >= 2) {
       socket.emit('roomFull', 'Room is full');
       return;
     }
@@ -84,21 +83,22 @@ io.on('connection', (socket) => {
       rooms[roomName] = { players: {}, gameStarted: false };
     }
     rooms[roomName].players[socket.id] = {
-        username,
-        soldiers: Array(4).fill().map(() => ({
-          x: Math.random() * 600, // Random initial position within the canvas
-          y: Math.random() * 400,
-          radius: 20, // Display size
-        })),
-        score: 0,
-      };
+      username,
+      soldiers: Array(4).fill().map(() => ({
+        x: Math.random() * 600, // Random initial position within the canvas
+        y: Math.random() * 400,
+        radius: 20, // Display size
+      })),
+      score: 0,
+    };
+
     // Notify other players
     io.to(roomName).emit('playerJoined', {
       players: Object.values(rooms[roomName].players),
     });
 
     // Start game if room has 4 players
-    if (room.players.length >= 3) {
+    if (room.players.length >= 1) {
       rooms[roomName].gameStarted = true;
       io.to(roomName).emit('startGame', {
         players: rooms[roomName].players,
@@ -108,14 +108,14 @@ io.on('connection', (socket) => {
 
   socket.on('moveSoldier', ({ roomName, soldierIndex, targetX, targetY }) => {
     if (!rooms[roomName] || !rooms[roomName].players[socket.id]) return;
-  
+
     const player = rooms[roomName].players[socket.id];
     if (!player.soldiers || !player.soldiers[soldierIndex]) return;
-  
+
     // Update soldier's position
     player.soldiers[soldierIndex].x = targetX;
     player.soldiers[soldierIndex].y = targetY;
-  
+
     // Notify all players in the room
     io.to(roomName).emit('soldierMoved', {
       playerId: socket.id,
@@ -124,7 +124,6 @@ io.on('connection', (socket) => {
       targetY,
     });
   });
-  
 
   // Combat Logic
   socket.on('attack', ({ roomName, targetId }) => {
