@@ -21,6 +21,33 @@ document.getElementById('login').addEventListener('click', () => handleAuth('log
 document.getElementById('joinRoom').addEventListener('click', joinRoom);
 let selectedSoldier = null;
 
+let playerColors = {};
+let myId = null;
+let selected = false;
+let selectedBallNum = 0;
+let closestBallIndex = -1;
+let goldZones = [];
+let mapSize = { width: 4000, height: 4000 }; // Larger map size
+let camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+
+// Dynamically adjust canvas size
+
+// Load images for balls
+const ballImages = {
+    "images/ball50.png": new Image(),
+    "images/ball100.png": new Image(),
+    "images/ball300.png": new Image(),
+    "images/ball500.png": new Image(),
+};
+ballImages["images/ball50.png"].src = "/images/ball50.png";
+ballImages["images/ball100.png"].src = "/images/ball100.png";
+ballImages["images/ball300.png"].src = "/images/ball300.png";
+ballImages["images/ball500.png"].src = "/images/ball500.png";
+
+// Load gold zone image
+const goldZoneImage = new Image();
+goldZoneImage.src = "/images/gold_zone.png";
+
 // Authentication Logic
 async function handleAuth(action) {
   const user = elements.usernameInput.value;
@@ -84,41 +111,58 @@ function startGame() {
 
   canvas.addEventListener('click', event => handleClick(event, camera));
   socket.on('soldierMoved', updateSoldierPosition);
-  socket.on('playerAttacked', updatePlayerSoldiers);
-  socket.on('playerDefeated', removeDefeatedPlayer);
+
   
   draw();
 
-  document.addEventListener('keydown', event => {
-    const direction = {
-      ArrowUp: 'up',
-      ArrowDown: 'down',
-      ArrowLeft: 'left',
-      ArrowRight: 'right',
-    }[event.key];
-
-    if (direction) {
-      //socket.emit('move', { roomName: elements.roomNameInput.value, direction });
-    }
-  });
+ 
 }
 
 // Helper Functions
 function handleClick(event, camera) {
+  console.log("click");
   const canvas = document.getElementById('gameCanvas');
-  const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left + camera.x;
-  const y = event.clientY - rect.top + camera.y;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left + camera.x;
+    const y = event.clientY - rect.top + camera.y;
 
-  const mySoldiers = players[socket.id]?.soldiers;
+    // Find the closest ball to move
+    const mySoldiers = players[socket.id];
 
-  if (mySoldiers) {
-    if (selectedSoldier === null) {
-      selectSoldier(mySoldiers, x, y);
-    } else {
-      moveSelectedSoldier(x, y);
+    if (mySoldiers) {
+
+      // Find the closest ball
+      let closestDistance = Infinity;
+
+      mySoldiers.forEach((ball, index) => {
+        const dx = ball.x - x;
+        const dy = ball.y - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < ball.radius) {
+          closestDistance = distance;
+          closestBallIndex = index;
+          selected = true;
+          selectedBallNum++;
+          console.log("Distance"+selected+" "+selectedBallNum+" "+closestBallIndex);
+        }
+      });
+      console.log("Finish 1 :"+selected+" "+selectedBallNum+" "+closestBallIndex);
+
+      if (selectedBallNum===0 && selected && closestBallIndex !== -1) {
+
+        socket.emit('moveSoldier', {
+          soldierIndex: closestBallIndex,
+          targetX: x,
+          targetY: y,
+          roomName: elements.roomNameInput.value,
+        });
+        selected = false;
+        closestBallIndex = -1;
+
+      }
+      selectedBallNum=0;
+
     }
-  }
 }
 
 function selectSoldier(mySoldiers, x, y) {
@@ -153,11 +197,7 @@ function updateSoldierPosition({ playerId, soldierIndex, targetX, targetY }) {
   }
 }
 
-function updatePlayerSoldiers({ targetId, remainingSoldiers }) {
-  if (players[targetId]) {
-    players[targetId].soldiers = remainingSoldiers;
-  }
-}
+
 
 function removeDefeatedPlayer({ targetId }) {
   delete players[targetId];
@@ -168,23 +208,75 @@ function draw() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (const id in players) {
-    const { soldiers } = players[id];
-    soldiers.forEach(({ x, y, radius }, index) => {
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = id === socket.id ? 'blue' : 'red'; // Different colors for self and others
-      ctx.fill();
-      ctx.closePath();
+  const myBalls = players[socket.id];
+  if (myBalls && myBalls.length > 0) {
+      const avgX = myBalls.reduce((sum, ball) => sum + ball.x, 0) / myBalls.length;
+      const avgY = myBalls.reduce((sum, ball) => sum + ball.y, 0) / myBalls.length;
 
-      ctx.fillStyle = 'black';
-      ctx.fillText(`S${index}`, x - 10, y - radius - 5); // Label soldiers
-    });
+      camera.x = Math.max(0, Math.min(mapSize.width - camera.width, avgX - camera.width / 2));
+      camera.y = Math.max(0, Math.min(mapSize.height - camera.height, avgY - camera.height / 2));
+  }
+
+  // Draw gold zones
+  goldZones.forEach((zone) => {
+      const drawX = zone.x - zone.radius - camera.x;
+      const drawY = zone.y - zone.radius - camera.y;
+
+      ctx.drawImage(
+          goldZoneImage,
+          drawX,
+          drawY,
+          zone.radius * 2,
+          zone.radius * 2
+      );
+  });
+
+  // Draw players and balls
+  for (const playerId in players) {
+      const balls = players[playerId];
+      const color = playerColors[playerId];
+
+      balls.forEach((ball) => {
+          const drawX = ball.x - ball.radius - camera.x;
+          const drawY = ball.y - ball.radius - camera.y;
+
+          const image = ballImages[ball.image];
+          if (image) {
+              ctx.drawImage(
+                  image,
+                  drawX,
+                  drawY,
+                  ball.radius * 2,
+                  ball.radius * 2
+              );
+          } else {
+              // Fallback: Draw a circle if image is missing
+              //ctx.fillStyle = color;
+              //ctx.beginPath();
+              //ctx.arc(drawX + ball.radius, drawY + ball.radius, ball.radius, 0, Math.PI * 2);
+              //ctx.fill();
+          }
+
+          // Draw score inside the ball
+          ctx.fillStyle = "#000";
+          ctx.font = "12px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(Math.round(ball.score), drawX + ball.radius, drawY +2 );
+      });
   }
 
   requestAnimationFrame(draw);
 }
+socket.on("stateUpdate", (data) => {
+  players = data.players;
+  playerColors = data.playerColors;
+  goldZones = data.goldZones;
+});
 
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+window.addEventListener('beforeunload', () => {
+  socket.disconnect();
+});

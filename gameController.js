@@ -74,7 +74,6 @@ function getRandomColor() {
   }
 
 io.on('connection', (socket) => {
-  
   console.log('User connected:', socket.id);
   const initialX = Math.random() * 800;
   const initialY = Math.random() * 600;
@@ -86,8 +85,6 @@ io.on('connection', (socket) => {
     if (!room) {
       room = new Room({ name: roomName, players: [] });
       await room.save();
-    }else{
-      console.log(room.players.length);
     }
 
     if (room.players.length >= 2) {
@@ -99,9 +96,6 @@ io.on('connection', (socket) => {
     await room.save();
     socket.join(roomName);
 
-    socket.username = username;
-    socket.roomName = roomName;
-    
     if (!rooms[roomName]) {
       rooms[roomName] = { players: {}, gameStarted: false };
     }
@@ -252,48 +246,31 @@ setInterval(() => {
         }
       });
     }
-    io.emit('stateUpdate', { players: Object.values(rooms[roomName].players), playerColors, goldZones });
-
 }
+    io.emit('stateUpdate', { playplayers: Object.values(rooms[roomName].players), playerColors, goldZones });
   }, 16); // ~60 FPS
   // Disconnect
   socket.on('disconnect', async () => {
-    const username = socket.username;
-    const roomName = socket.roomName;
-  
-    if (!username || !roomName) return; // Əgər bu məlumatlar yoxdursa, heç nə etmirik
-  
-    console.log(`User disconnected: ${username} from room: ${roomName}`);
-  
-    // Yaddaşdan istifadəçini çıxar
-    if (rooms[roomName] && rooms[roomName].players[username]) {
-      delete rooms[roomName].players[username];
-      console.log(`Player removed from memory in room: ${roomName}`);
+    for (const roomName in rooms) {
+      if (rooms[roomName].players[socket.id]) {
+        delete rooms[roomName].players[socket.id];
+
+        // Update MongoDB room data
+        const room = await Room.findOne({ name: roomName });
+        if (room) {
+          room.players = room.players.filter(
+            (player) => player !== rooms[roomName].players[socket.id].username
+          );
+          await room.save();
+        }
+
+        io.to(roomName).emit('playerLeft', {
+          players: Object.values(rooms[roomName].players),
+        });
+        break;
+      }
     }
-  
-    // MongoDB-dən istifadəçini otağın siyahısından çıxar
-    const room = await Room.findOne({ name: roomName });
-    if (room) {
-      room.players = room.players.filter((player) => player !== username);
-      await room.save();
-  
-      console.log(`Player removed from MongoDB room: ${roomName}`);
-    }
-  
-    // Əgər otaq boşdursa, yaddaşdan və MongoDB-dən sil
-    if (room && room.players.length === 0) {
-      delete rooms[roomName];
-      await Room.deleteOne({ name: roomName });
-      console.log(`Room deleted: ${roomName}`);
-    }
-  
-    // Digər istifadəçilərə oyunçunun otağı tərk etdiyini bildir
-    io.to(roomName).emit('playerLeft', {
-      players: rooms[roomName]?.players || {},
-    });
   });
-  
-  
 });
 
 // Start Server
